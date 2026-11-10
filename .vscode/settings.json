@@ -1,0 +1,33 @@
+{
+    "memory-inspector.debugTypes": [
+        "arm-debugger",
+        "embedded-debug",
+        "gdb",
+        "gdbtarget",
+        "mplab-core-da"
+    ],
+    "mplab.ioview.columnHeaders": {
+        "Opgave1-default": [
+            "Name",
+            "Address",
+            "Description",
+            "Decimal",
+            "Value",
+            "Bits"
+        ]
+    },
+    "mplab.ioview.columnWidths": {
+        "Opgave1-default": [
+            100,
+            100,
+            100,
+            100,
+            100,
+            600
+        ]
+    },
+    "mplab.ioview.taggedNodes": {
+        "Opgave1-default": []
+    },
+    "mplab.clangd.compileCommandsDir": "${workspaceFolder}/_build/Opgave1/default"
+}

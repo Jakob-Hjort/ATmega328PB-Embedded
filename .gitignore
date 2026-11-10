@@ -1,0 +1,17 @@
+# Kompilerede filer
+_build/
+out/
+*.elf
+*.hex
+*.o
+*.d
+
+# Lokale MPLAB-indstillinger
+.vscode/*.mplab-local.json
+
+# Lokale IntelliSense-indstillinger
+.vscode/c_cpp_properties.json
+
+# Midlertidige filer
+.DS_Store
+*~
