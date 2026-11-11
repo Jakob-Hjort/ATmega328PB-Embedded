@@ -9,7 +9,8 @@
 #define PROJECTDEFINES_H_
 
 #define F_CPU 16000000UL  // Antager 16 MHz krystal (ret hvis din kører med f.eks. 8 MHz)
-#define GreenLedBit PORTB1
+#define GreenLedBit PORTB5
+#define BAUD 9600UL
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -25,9 +26,9 @@
 #endif
 
 #if defined(_AVR_IOM2560_H_) || defined (_AVR_ATMEGA328PB_H_INCLUDED)
-#define GreenLedBit		PORTB1
-#define YellowLedBit    PORTB2
-#define RedLedBit		PORTB3
+#define GreenLedBit		PORTB5
+#define YellowLedBit    PORTB1
+#define RedLedBit		PORTB2
 #endif
 
 #endif /* PROJECTDEFINES_H_ */

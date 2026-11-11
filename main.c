@@ -5,9 +5,11 @@
  * @brief Main function
  */
 
- #include "Include/Timer/Timer.h"
- #include "Include/UART/Uart.h"
- #include "Include/ProjectDefines.h"
+#include "Include/Timer/Timer.h"
+#include "Include/UART/Uart.h"
+#include "Include/ProjectDefines.h"
+#include <util/atomic.h>
+#include <stdio.h>
 // #include <avr/io.h>
 // #include <avr/interrupt.h>
 
@@ -36,10 +38,10 @@
 //     if (ticks > 0) {
 //         ticks--; // Da sammenligningen starter fra 0
 //     }
-    
+
 //     // Sørg for at værdien ikke overstiger 16-bit max (65535)
 //     if (ticks > 65535) {
-//         ticks = 65535; 
+//         ticks = 65535;
 //     }
 
 //     OCR1A = (uint16_t)ticks;
@@ -55,23 +57,63 @@
 //     PORTB ^= (1 << GreenLedBit);
 // }
 
-int main(void) {
-    DDRB |= (1 << GreenLedBit);  // Sæt PB1 som output for den grønne LED
+int main(void)
+{
+    DDRB |= (1 << GreenLedBit); // Sæt PB1 som output for den grønne LED
 
     // Eksempel 1: Sæt timeout til 500 ms
-    Timer1_Init_ms(500);
+    Timer1_Init_ms(1000);
 
     // Hvis du vil skifte til 250ms eller 1000ms, kalder du blot funktionen igen:
     // Timer1_Init_ms(250);
     // Timer1_Init_ms(1000);
 
     RS232Init();
+    UART1_Init();
     Enable_UART_Receive_Interrupt();
 
     // Aktivér globale interrupts
     sei();
 
-    while (1) {
-        // Hovedloop kan køre her uafhængigt
+    uint32_t seconds = 0;
+
+    
+while (1)
+{
+    uint8_t oneSecondPassed = 0;
+
+    // Kontrollér timerflaget
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+    {
+        if (timerFlag == 1)
+        {
+            timerFlag = 0;
+            oneSecondPassed = 1;
+        }
     }
+
+    // Hvis der er gået et sekund
+    if (oneSecondPassed)
+    {
+        seconds++;
+
+        char message[48];
+
+        snprintf(message, sizeof(message),
+                 "Sekunder efter opstart: %lu\r\n",
+                 (unsigned long)seconds);
+
+        // Send sekundtælleren til UART1
+        UART1_SendString(message);
+    }
+
+    // Send ventende karakterer til UART1
+    char character;
+
+    while (UART1_GetQueuedChar(&character))
+    {
+        UART1_SendChar(character);
+    }
+}
+
 }

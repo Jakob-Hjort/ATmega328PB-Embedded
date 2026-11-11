@@ -12,6 +12,19 @@
 #include "../../Include/ProjectDefines.h"
 #include "../../Include/UART/Uart.h"
 
+#include <util/atomic.h>
+
+#define UART1_BUFFER_SIZE 128
+
+// Buffer til tegn, som skal sendes på UART1
+static volatile char uart1Buffer[UART1_BUFFER_SIZE];
+
+// Position hvor næste tegn gemmes
+static volatile uint8_t uart1Head = 0;
+
+// Position hvor næste tegn hentes
+static volatile uint8_t uart1Tail = 0;
+
  static FILE uart_output = FDEV_SETUP_STREAM(uart_putch, NULL, _FDEV_SETUP_WRITE);
  static FILE uart_input = FDEV_SETUP_STREAM(NULL, uart_getch, _FDEV_SETUP_READ);
 
@@ -55,16 +68,65 @@
 	 return 0;
  }
 
- ISR(USART0_RX_vect)
+
+/*
+ * Gem et tegn i UART1-bufferen.
+ * Kaldes fra UART0 Receive Interrupt.
+ */
+static void UART1_QueueChar(char character)
 {
+    // Beregn næste ledige position
+    uint8_t nextHead = (uart1Head + 1) % UART1_BUFFER_SIZE;
+
+    // Gem kun tegnet, hvis bufferen ikke er fuld
+    if (nextHead != uart1Tail)
+    {
+        uart1Buffer[uart1Head] = character;
+        uart1Head = nextHead;
+    }
+}
+
+
+/*
+ * Hent et tegn fra UART1-bufferen.
+ * Returnerer 1 hvis der blev hentet et tegn.
+ * Returnerer 0 hvis bufferen er tom.
+ */
+uint8_t UART1_GetQueuedChar(char *character)
+{
+    uint8_t received = 0;
+
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+    {
+        if (uart1Tail != uart1Head)
+        {
+            *character = uart1Buffer[uart1Tail];
+
+            uart1Tail =
+                (uart1Tail + 1) % UART1_BUFFER_SIZE;
+
+            received = 1;
+        }
+    }
+
+    return received;
+}
+
+
+
+ 
+ISR(USART0_RX_vect)
+{
+    // Læs karakteren fra UART0
     char ReceivedByte = UDR0;
 
-    // Stort bogstav A-Z -> lille bogstav a-z
+    // Stort bogstav -> lille bogstav
     if (ReceivedByte >= 'A' && ReceivedByte <= 'Z')
     {
         ReceivedByte += 32;
     }
-    // Lille bogstav a-z -> stort bogstav A-Z
+
+    // Lille bogstav -> stort bogstav
     else if (ReceivedByte >= 'a' && ReceivedByte <= 'z')
     {
         ReceivedByte -= 32;
@@ -75,6 +137,54 @@
     {
     }
 
-    // Send det konverterede tegn tilbage
+    // Send tegnet tilbage på UART0
     UDR0 = ReceivedByte;
+
+    // Læg samme tegn i kø til UART1
+    UART1_QueueChar(ReceivedByte);
+}
+
+
+// Opgave 2 funktioner
+
+void UART1_Init(void)
+{
+    // Beregn baudrate til UART1 (9600 baud)
+    uint16_t ubrr = (F_CPU / (16UL * BAUD)) - 1;
+
+    // Indstil UART1 baudrate
+    UBRR1H = (uint8_t)(ubrr >> 8);
+    UBRR1L = (uint8_t)ubrr;
+
+    // Normal hastighed (ikke double speed)
+    UCSR1A = 0;
+
+    // Aktivér UART1 transmitter
+    UCSR1B = (1 << TXEN1);
+
+    // 8 databits, ingen paritet, 1 stopbit
+    UCSR1C = (1 << UCSZ11) | (1 << UCSZ10);
+}
+
+
+// Sender én karakter gennem UART1
+void UART1_SendChar(char c)
+{
+    // Vent indtil UART1 er klar til at sende
+    while (!(UCSR1A & (1 << UDRE1)))
+    {
+    }
+
+    UDR1 = c;
+}
+
+
+// Sender en hel tekst gennem UART1
+void UART1_SendString(const char *text)
+{
+    while (*text != '\0')
+    {
+        UART1_SendChar(*text);
+        text++;
+    }
 }

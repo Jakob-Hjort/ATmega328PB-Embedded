@@ -37,7 +37,11 @@ void Timer1_Init_ms(uint16_t timeout_ms) {
 
 // ISR (Interrupt Service Routine) for Timer 1 Compare Match A
 ISR(TIMER1_COMPA_vect) {
-    // Indsæt den kode, der skal udføres ved hvert timeout.
-    // F.eks. toggling af en LED eller flag-sætning til hovedprogrammet.
+    // Skift LED'ens tilstand
     PORTB ^= (1 << GreenLedBit);
+
+    // Fortæl main(), at et sekund er gået
+    timerFlag = 1;
 }
+
+volatile uint8_t timerFlag = 0;

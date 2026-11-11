@@ -1,8 +1,14 @@
-// #define F_CPU 16000000UL  // Antager 16 MHz krystal (ret hvis din kører med f.eks. 8 MHz)
-// #define GreenLedBit PB5  
+#ifndef TIMER_H_
+#define TIMER_H_
 
-// #include <avr/io.h>
-// #include <avr/interrupt.h>
+/*
+Det kaldes en include guard og forhindrer, at indholdet af den samme headerfil bliver behandlet flere gange i én kompileringsenhed.
+*/
 
+
+#include <stdint.h>
 
 extern void Timer1_Init_ms(uint16_t timeout_ms);
+extern volatile uint8_t timerFlag;
+
+#endif /* TIMER_H_ */
