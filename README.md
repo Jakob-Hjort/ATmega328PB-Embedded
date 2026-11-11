@@ -1,96 +1,63 @@
-# ATmega328PB – Embedded opgave 1 og 2
+# ATmega328PB – Embedded opgaver
 
-Dette repository indeholder to embedded-opgaver skrevet i **C** til **ATmega328PB Xplained Mini**. Opgave 2 bygger videre på opgave 1. Programmet bruger hardware-interrupts til at blinke med en LED og behandle seriel kommunikation.
+Dette repository indeholder embedded-opgaver udviklet i C til **ATmega328PB Xplained Mini**.
 
-## Hardware og udviklingsmiljø
-
-- **Mikrocontroller:** ATmega328PB Xplained Mini
-- **Udvikling:** Visual Studio Code med MPLAB-udvidelser på Ubuntu
-- **Compiler:** AVR-GCC 14.3.0
-- **Programmering:** Boardets mEDBG via USB (AVRDude)
-- **UART0:** Boardets USB-forbindelse, typisk `/dev/ttyACM0`
-- **UART1:** Ekstern CP2101/CP2102 USB-UART-adapter, typisk `/dev/ttyUSB0`
-- **Serielle indstillinger:** 9600 baud, 8 databits, ingen paritet, 1 stopbit (8N1)
-- **CPU-frekvens:** 16 MHz som angivet af `F_CPU`
-- **LED:** Styres af `GreenLedBit` på port B. Den konkrete pin skal passe til boardets/LED'ens tilslutning og værdien i `ProjectDefines.h`.
-
-## Projektstruktur
-
-```text
-IOT-projekt1/
-├── .vscode/                    # MPLAB-projektindstillinger
-├── Include/
-│   ├── ProjectDefines.h       # Fælles definitioner
-│   ├── Timer/
-│   │   └── Timer.h            # Timer-deklarationer og timerFlag
-│   └── UART/
-│       └── Uart.h             # UART-funktioner
-├── Src/
-│   ├── Timer/
-│   │   └── Timer.c            # Timer1 og timer-interrupt
-│   └── UART/
-│       └── Uart.c             # UART0/UART1 og ringbuffer
-├── main.c                     # Initialisering og hovedloop
-├── README.md
-└── softwarebeskrivelse-opgave1.odt
-```
-
-*Buildmapper såsom `_build/` og `out/` dannes lokalt og behøver ikke ligge på GitHub.*
-
----
-
-## Opgave 1 – Timer Interrupt og UART0
+## Opgave 2 – Timer Interrupt, UART0 og UART1
 
 ### Formål
 
-Programmet skal få en LED til at blinke med et skift hvert **500 ms** og samtidig modtage karakterer fra en PC gennem UART0. Store bogstaver skal ændres til små, små bogstaver til store, og alle andre tegn skal returneres uændret.
+Programmet bygger videre på opgave 1 og skal få en LED til at skifte tilstand hvert sekund ved hjælp af et timer-interrupt. Samtidig skal programmet tælle sekunder efter opstart og sende sekundtælleren til computeren via UART1.
 
-### Sådan virker programmet
+Når der modtages tekst på UART0, skal store bogstaver konverteres til små og omvendt. Tal og specialtegn sendes uændret videre. De behandlede karakterer skal sendes til både UART0 og UART1.
 
-Ved opstart konfigurerer `main.c` LED-pinnen som output. Timer1 sættes op i **CTC-mode** (Clear Timer on Compare Match) med en prescaler på **256**. Ved 16 MHz svarer compare-værdien `OCR1A = 31249` til ca. 500 ms. Når timeren når værdien, aktiveres `ISR(TIMER1_COMPA_vect)`, som skifter LED'ens tilstand. Den er dermed tændt og slukket i skiftende intervaller på ca. 500 ms.
+### Hardware og udviklingsmiljø
 
-UART0 sættes op til **9600 baud, 8N1**, og UART0's modtage-interrupt aktiveres. Når der kommer en karakter fra PC'en, udføres `ISR(USART0_RX_vect)`. Her kontrolleres karakteren ud fra ASCII:
+- Mikrocontroller: ATmega328PB Xplained Mini
+- Sprog: C
+- Compiler: AVR-GCC
+- Udviklingsmiljø: VS Code med MPLAB-udvidelser
+- UART0: Boardets USB-forbindelse (`/dev/ttyACM0` på Ubuntu)
+- UART1: Ekstern CP2101/CP2102 USB-UART-adapter (`/dev/ttyUSB0` på Ubuntu)
+- UART-indstillinger: 9600 baud, 8 databits, ingen paritet, 1 stopbit
+- LED: PB5
+- Timer1: CTC-mode med interrupt hvert 1000 ms
 
-- `A`–`Z` konverteres til `a`–`z`.
-- `a`–`z` konverteres til `A`–`Z`.
-- Tal, mellemrum og specialtegn ændres ikke.
+### Projektets opbygning
 
-Derefter sendes karakteren tilbage gennem UART0. `sei()` aktiverer globale interrupts, og hovedprogrammet kan være i et tomt `while (1)`-loop. Timer1 og UART0 er **to separate interruptkilder**; CPU'en håndterer dem efter tur.
+| Fil | Funktion |
+| --- | --- |
+| `main.c` | Initialiserer Timer1, UART0 og UART1, håndterer sekundtælleren og sender data via UART1. |
+| `Timer.c` / `Timer.h` | Konfigurerer Timer1, styrer LED'en og sætter et flag hvert sekund. |
+| `Uart.c` / `Uart.h` | Håndterer UART0, UART1, bogstavkonvertering og videresendelse af karakterer. |
+| `ProjectDefines.h` | Samler fælles definitioner som CPU-frekvens, baudrate og LED-pins. |
+
+### Sådan fungerer programmet
+
+Ved opstart konfigureres LED-pinnen som output. Timer1 initialiseres i **CTC-mode**, så `TIMER1_COMPA_vect` udløses cirka hvert **1000 ms**. Interrupt-funktionen skifter LED'ens tilstand og sætter variablen `timerFlag` til 1.
+
+Hovedprogrammet kontrollerer `timerFlag` i sit `while (1)`-loop. Når flaget er sat, bliver det nulstillet, og sekundtælleren øges med 1. Ved hjælp af `ATOMIC_BLOCK` sikres det, at aflæsningen og nulstillingen sker uden afbrydelse fra et interrupt.
+
+Sekundtallet omdannes til tekst og sendes via **UART1** til computeren gennem CP2101/CP2102-adapteren.
+
+UART0 initialiseres til **9600 baud**, og modtage-interruptet aktiveres. Når en karakter modtages, udløses `USART0_RX_vect`. Programmet undersøger karakterens ASCII-værdi:
+
+- `A`–`Z` ændres til `a`–`z`.
+- `a`–`z` ændres til `A`–`Z`.
+- Tal, mellemrum og specialtegn sendes uændret videre.
+
+Den konverterede karakter sendes direkte tilbage på UART0 og gemmes samtidig i en **ringbuffer**, som hovedprogrammet efterfølgende læser fra og sender videre til UART1.
+
+Ringbufferen anvendes for at undgå, at UART0-interruptet og hovedprogrammet forsøger at sende data på UART1 samtidig.
+
+De globale interrupts aktiveres med `sei()`, hvorefter hovedprogrammet fortsætter i et uendeligt loop. Timer- og UART-interrupts håndteres separat, mens UART1-afsendelsen udføres fra hovedprogrammet.
 
 ### Test
 
-| Sendt på UART0 | Forventet svar |
-| --- | --- |
-| `test` | `TEST` |
-| `ABC` | `abc` |
-| `Hej 123!` | `hEJ 123!` |
-| `987!?` | `987!?` |
+Programmet er testet med LED-blink og to samtidige serielle forbindelser.
 
-LED-blink og `test` → `TEST` blev afprøvet under udviklingen. De øvrige rækker viser, hvad programmet skal returnere.
+**Timer1 og UART1:**
 
----
-
-## Opgave 2 – Timerflag, sekundtæller og UART1
-
-### Formål
-
-Opgave 2 videreudvikler løsningen, så **begge UART-enheder** bruges. Timer1 skal udløse et interrupt hvert **1000 ms**, hvor LED'en skifter tilstand og et flag sættes. Hovedloopet skal nulstille flaget, tælle sekunder og udskrive `Sekunder efter opstart: N` på **UART1**. Tegn modtaget på UART0 konverteres som i opgave 1, men skal nu sendes tilbage på **både UART0 og UART1**.
-
-### Timer1 og flaget
-
-Timer1 er fortsat i CTC-mode. Med prescaler 256, 16 MHz og et interval på 1000 ms bliver `OCR1A = 62499`.
-
-Ved hvert compare match:
-
-1. LED'en skifter tilstand.
-2. Timer-interruptet sætter `timerFlag = 1`.
-3. Hovedloopet læser og nulstiller flaget i en `ATOMIC_BLOCK`, så aflæsning og nulstilling sker samlet.
-4. Variablen `seconds` øges, og en besked formateres med `snprintf()`.
-5. Beskeden sendes på UART1 med `UART1_SendString()`.
-
-Flaget er deklareret `volatile`, fordi det ændres i et interrupt. Programmet bruger et enkelt flag frem for en hændelsestæller; det forudsætter, at hovedloopet når at behandle flaget inden næste sekund.
-
-Eksempel på output fra UART1:
+LED'en skifter tilstand cirka hvert sekund, og UART1 viser sekundtælleren:
 
 ```text
 Sekunder efter opstart: 1
@@ -98,69 +65,22 @@ Sekunder efter opstart: 2
 Sekunder efter opstart: 3
 ```
 
-### UART0, UART1 og ringbuffer
+**UART0 og UART1:**
 
-UART0 modtager karakterer fra PC'en og aktiverer `USART0_RX_vect`. Hvert tegn bliver konverteret som i opgave 1 og sendt direkte tilbage på UART0.
+Bogstavkonverteringen er testet ved at sende tekst til UART0 og kontrollere, at samme konverterede tekst modtages på begge UART-forbindelser.
 
-Det samme konverterede tegn lægges i en **ringbuffer**. Hovedloopet henter tegnene fra bufferen og sender dem videre via UART1. På den måde er det kun hovedloopet, der skriver til UART1, både når der sendes sekundbeskeder og tegn fra UART0. Det reducerer risikoen for, at de to afsendelser forstyrrer hinanden.
-
-Ringbufferen har en begrænset kapacitet. Hvis den bliver fuld, kan nye tegn til UART1 blive sprunget over i denne enkle implementering.
-
-### Fysisk tilslutning
-
-| ATmega328PB | CP2101/CP2102 | Funktion |
+| Sendt på UART0 | Modtaget på UART0 | Modtaget på UART1 |
 | --- | --- | --- |
-| PB3 / TXD1 | RXD | Data fra UART1 til PC |
-| PB4 / RXD1 | TXD | Data fra PC til UART1 (valgfri til denne opgaves sendetest) |
-| GND | GND | Fælles stel |
+| `Hej 123!` | `hEJ 123!` | `hEJ 123!` |
 
-Boardets almindelige USB-kabel bruges fortsat til UART0 og programmering. Kontroller, at adapterens logikniveau er kompatibelt med mikrocontrolleren; forbind ikke to separate strømforsyninger direkte uden at have kontrolleret deres specifikationer.
+Ved testen blev det bekræftet, at UART1 modtog både sekundtælleren og den konverterede tekst, mens UART0 returnerede den konverterede tekst.
 
-### Test og resultat
-
-Der blev åbnet to serielle monitorer på Ubuntu:
-
-| Port | Resultat |
-| --- | --- |
-| `/dev/ttyACM0` (UART0) | `Hej 123!` blev returneret som `hEJ 123!` |
-| `/dev/ttyUSB0` (UART1) | Sekundbeskeder blev vist, og den konverterede tekst `hEJ 123!` blev modtaget |
-
-Et eksempel fra UART1-testen:
-
-```text
-Sekunder efter opstart: 25
-Sekunder efter opstart: 26
-hEJ 123!Sekunder efter opstart: 27
-Sekunder efter opstart: 28
-```
-
-Teksten kan stå lige foran en sekundbesked, fordi tegnene fra UART0 ikke nødvendigvis afsluttes med linjeskift. Det ændrer ikke ved, at de modtages og videresendes korrekt. LED'en blev samtidig observeret skifte tilstand med cirka ét sekund mellem skiftene.
+Den konverterede tekst kan blive vist på samme linje som en sekundbesked, hvis teksten ikke afsluttes med et linjeskift.
 
 ### Konklusion
 
-Opgave 2 demonstrerer anvendelse af **Timer1 Interrupt**, **UART0 Receive Interrupt**, et delt timerflag og en **ringbuffer**. Timer1 styrer LED og sekundtælling, UART0 konverterer modtagne tegn, og UART1 udsender både sekundstatus og de konverterede tegn. Hovedloopet koordinerer afsendelsen på UART1, mens interrupts håndterer hardwarehændelserne.
+Opgave 2 demonstrerer, hvordan **Timer1, UART0 og UART1** kan anvendes i samme program.
 
----
+Timer1 styrer LED'en og giver hovedprogrammet besked om, at der er gået et sekund. UART0 modtager og konverterer karakterer, mens UART1 sender både sekundtælleren og en kopi af de konverterede karakterer.
 
-## Byg og programmér boardet
-
-1. Åbn projektet i VS Code og byg den relevante MPLAB-konfiguration (`default`).
-2. Stop eventuel aktiv debug-session, så programmeringsenheden er ledig.
-3. Kontrollér, at firmwarefilen findes, og programmér boardet fra projektmappen:
-
-```bash
-ls -lh out/Opgave1/default.hex
-avrdude -c xplainedmini -p m328pb -P usb -U flash:w:out/Opgave1/default.hex:i
-```
-
-En vellykket programmering afsluttes typisk med `flash verified` og `avrdude done. Thank you.`
-
-**Bemærk:** I det aktuelle projekt hedder MPLAB-konfigurationen stadig `Opgave1`, selvom kildekoden er blevet videreudviklet til opgave 2. Versionshistorik eller en separat Git-branch kan bruges til at finde den oprindelige version af opgave 1.
-
-## Læringspunkter
-
-- Konfiguration af hardware-timere, prescaler og CTC-mode.
-- Brug af interrupts i stedet for konstant polling i hovedloopet.
-- UART-kommunikation med 8N1 og ASCII-konvertering.
-- Deling af data mellem interrupt og hovedloop med `volatile` og atomiske operationer.
-- Buffering og videresendelse af data mellem to UART-enheder.
+Ved hjælp af interrupts, et timerflag og en ringbuffer kan mikrocontrolleren håndtere de forskellige funktioner uden at hovedprogrammet konstant skal overvåge hardwareregistrene.
